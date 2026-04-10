@@ -1,31 +1,24 @@
 # claude-heartbeat
 
-Persistent OS-level scheduling for Claude Code CLI sessions.
+Persistent OS-level scheduling for Claude Code CLI sessions via a file-watching MCP channel.
 
 ## The Problem
 
-Claude Code CLI's built-in scheduling (`CronCreate`, `/loop`) is session-only — it dies on restart and expires after 7 days. Desktop scheduled tasks require the Desktop app. Cloud scheduled tasks can't access local files or MCP servers. There's no built-in way for an external process to trigger a running CLI session.
+Claude Code's built-in scheduling (`CronCreate`, `/schedule`) is session-scoped: it dies on restart and expires after 7 days. Worse, triggers fire at unreliable times -- up to 30 minutes late due to jitter and idle-only execution constraints. There is no built-in mechanism for an external process to wake a running CLI session on a precise schedule.
 
-## The Solution
+## How It Works
 
-claude-heartbeat bridges macOS launchd (the OS scheduler) to a running Claude Code session via a lightweight MCP channel that watches the filesystem. No external services, no network calls, no Telegram bots — just files.
-
-### How It Works
+claude-heartbeat uses the OS scheduler (macOS launchd) to write trigger files at exact times. A lightweight MCP channel server watches for those files and delivers them to the Claude Code session as channel events.
 
 ```
 launchd (OS scheduler)
-  → heartbeat fire <task>        (writes .trigger file)
-    → ~/.claude-heartbeat/inbox/   (filesystem)
-      → MCP channel server         (watches directory)
-        → Claude Code session      (receives channel notification)
+  -> heartbeat fire <task>          (writes .trigger file)
+    -> ~/.claude-heartbeat/inbox/   (filesystem)
+      -> MCP channel server         (watches directory)
+        -> Claude Code session      (receives channel event)
 ```
 
-1. You define tasks with cron schedules in `~/.claude-heartbeat/config.yaml`
-2. `heartbeat install` creates macOS LaunchAgent plists for each task
-3. At the scheduled time, launchd runs `heartbeat fire <task_name>`
-4. The fire command writes a `.trigger` file to the inbox directory
-5. The MCP channel server detects the file and delivers it to the Claude Code session as a `<channel source="heartbeat">` event
-6. Claude Code processes the trigger and executes the task
+No external services. No network calls. Just the filesystem.
 
 ## Installation
 
@@ -36,23 +29,25 @@ cd claude-heartbeat
 pip install -e .
 ```
 
-### 2. Install the MCP channel server dependencies
+### 2. Install the channel server dependencies
 
 ```bash
 cd channel
 npm install
 ```
 
-### 3. Register the channel as an MCP server
+### 3. Register the MCP server
 
-Add to your project's MCP config in `~/.claude.json` under the relevant project:
+Add to `~/.claude.json` under the project that should receive heartbeat triggers:
 
 ```json
-"mcpServers": {
-  "heartbeat": {
-    "type": "stdio",
-    "command": "bun",
-    "args": ["/path/to/claude-heartbeat/channel/server.ts"]
+{
+  "mcpServers": {
+    "heartbeat": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["/path/to/claude-heartbeat/channel/server.ts"]
+    }
   }
 }
 ```
@@ -60,7 +55,7 @@ Add to your project's MCP config in `~/.claude.json` under the relevant project:
 ### 4. Launch Claude Code with the channel
 
 ```bash
-claude --channels server:heartbeat --dangerously-load-development-channels
+claude --channels --dangerously-load-development-channels server:heartbeat
 ```
 
 The `--dangerously-load-development-channels` flag is required for custom (non-marketplace) channels.
@@ -68,7 +63,7 @@ The `--dangerously-load-development-channels` flag is required for custom (non-m
 ## Quick Start
 
 ```bash
-# Create config at ~/.claude-heartbeat/config.yaml
+# Create default config
 heartbeat init
 
 # Add a task
@@ -76,7 +71,7 @@ heartbeat add morning_briefing \
   --schedule "57 7 * * *" \
   --message "[HEARTBEAT:morning_briefing]"
 
-# Test it (writes trigger file immediately)
+# Test it (writes a trigger file immediately)
 heartbeat test morning_briefing
 
 # Register with macOS launchd
@@ -87,9 +82,9 @@ heartbeat status
 heartbeat list
 ```
 
-## Config File
+## Configuration
 
-Located at `~/.claude-heartbeat/config.yaml`:
+Config lives at `~/.claude-heartbeat/config.yaml`:
 
 ```yaml
 channel:
@@ -102,71 +97,82 @@ tasks:
     message: "[HEARTBEAT:morning_briefing]"
     enabled: true
 
-  evening_checkin:
-    schedule: "3 19 * * *"
-    message: "[HEARTBEAT:evening_checkin]"
-    enabled: true
-
   weekly_review:
     schedule: "3 18 * * 0"
     message: "[HEARTBEAT:weekly_review]"
     enabled: true
 ```
 
-## CLI Commands
+### Config Reference
+
+| Key | Description | Default |
+|---|---|---|
+| `channel.type` | Channel type | `file` |
+| `channel.inbox_dir` | Directory for trigger files | `~/.claude-heartbeat/inbox` |
+| `tasks.<name>.schedule` | Cron expression (5-field) | required |
+| `tasks.<name>.message` | Message content delivered to session | required |
+| `tasks.<name>.enabled` | Whether the task is active | `true` |
+
+Values support `${ENV_VAR}` expansion.
+
+## CLI Reference
 
 | Command | Description |
 |---|---|
-| `heartbeat init` | Interactive setup — creates config directory and file |
-| `heartbeat add <name> -s "cron" -m "msg"` | Add a scheduled task |
+| `heartbeat init` | Create config directory and default config file |
+| `heartbeat add <name> -s <cron> -m <msg>` | Add a scheduled task |
 | `heartbeat remove <name>` | Remove a task from config and scheduler |
-| `heartbeat list` | Show all tasks with schedule, status, last trigger |
+| `heartbeat list` | Show all tasks with schedule, status, and last trigger time |
 | `heartbeat install` | Register enabled tasks with macOS launchd |
 | `heartbeat uninstall` | Remove all LaunchAgent plists |
-| `heartbeat test <name>` | Send a test trigger immediately |
-| `heartbeat fire <name>` | Fire a trigger (called by launchd, not you) |
-| `heartbeat status` | Show installed launchd status |
-| `heartbeat logs [name]` | Show recent trigger history |
+| `heartbeat test <name>` | Write a test trigger file immediately |
+| `heartbeat fire <name>` | Fire a trigger (called by launchd, not by you) |
+| `heartbeat status` | Show installed launchd job status |
+| `heartbeat logs [name] [-n N]` | Show recent trigger history |
 
 ## Cron Expressions
 
-Standard 5-field: `minute hour day-of-month month day-of-week`
+Standard 5-field format: `minute hour day-of-month month day-of-week`
 
-- `57 7 * * *` — daily at 7:57 AM
-- `3 18 * * 0` — Sundays at 6:03 PM
-- `0 */6 * * *` — every 6 hours
-- `0 9 * * 1-5` — weekdays at 9 AM
+```
+57 7 * * *      daily at 7:57 AM
+3 18 * * 0      Sundays at 6:03 PM
+0 */6 * * *     every 6 hours
+0 9 * * 1-5     weekdays at 9:00 AM
+```
 
 Day of week: 0 = Sunday, 6 = Saturday.
 
-## Channel Delivery
+## How the Channel Works
 
-The MCP channel server (`channel/server.ts`) watches `~/.claude-heartbeat/inbox/` for `.trigger` files using `fs.watch` with a 30-second polling fallback. When a file appears:
+The MCP channel server (`channel/server.ts`) watches `~/.claude-heartbeat/inbox/` for `.trigger` files using `fs.watch` with a 30-second polling fallback. When a trigger file appears:
 
 1. Reads the file content
 2. Emits a `notifications/claude/channel` MCP notification
 3. Deletes the trigger file
 
-Messages arrive in Claude Code as:
+Messages arrive in the Claude Code session as:
 
-```
+```xml
 <channel source="heartbeat" task="morning_briefing" ts="...">
 [HEARTBEAT:morning_briefing]
 </channel>
 ```
 
-## Alternative: Telegram Channel
-
-A Telegram channel backend is also included for setups where file-based triggering isn't suitable. See `heartbeat/channels/telegram.py`. Note: Telegram bots cannot receive messages from other bots, so the Telegram approach requires using the Telethon user API.
+The session can then act on the trigger -- run a daily briefing, generate a report, check on tasks, or anything else defined in CLAUDE.md.
 
 ## Supported Platforms
 
-- **macOS** (launchd) — supported
-- **Linux** (systemd timers / cron) — planned
+- **macOS** (launchd) -- fully supported
+- **Linux** (systemd timers / cron) -- planned
 
 ## Requirements
 
 - Python 3.10+
-- Node.js / Bun (for the MCP channel server)
+- [Bun](https://bun.sh) (for the MCP channel server)
 - macOS (for launchd scheduling)
-- Claude Code CLI with channels support (v2.1.80+)
+- Claude Code CLI with channels support
+
+## License
+
+MIT
