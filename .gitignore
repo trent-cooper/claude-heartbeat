@@ -9,4 +9,4 @@ build/
 venv/
 .env
 *.log
-channel/
+channel/node_modules/

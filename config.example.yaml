@@ -1,12 +1,28 @@
+# claude-heartbeat configuration
+# Copy to ~/.claude-heartbeat/config.yaml
+
+# File-based channel (recommended — no external services needed)
 channel:
-  type: telegram
-  bot_token: "${HEARTBEAT_BOT_TOKEN}"
-  chat_id: "12345"
+  type: file
+  inbox_dir: "~/.claude-heartbeat/inbox"
+
+# Alternative: Telegram channel (requires Telethon user API auth)
+# channel:
+#   type: telegram
+#   api_id: "YOUR_API_ID"
+#   api_hash: "YOUR_API_HASH"
+#   chat_id: "YOUR_CHAT_ID"
+#   session_path: "~/.claude-heartbeat/telethon_session"
 
 tasks:
   morning_briefing:
     schedule: "57 7 * * *"
     message: "[HEARTBEAT:morning_briefing]"
+    enabled: true
+
+  evening_checkin:
+    schedule: "3 19 * * *"
+    message: "[HEARTBEAT:evening_checkin]"
     enabled: true
 
   weekly_review:
