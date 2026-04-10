@@ -30,7 +30,7 @@ class TelegramChannel(Channel):
             return False, "session_path is required"
         return True, ""
 
-    def send(self, message: str) -> tuple[bool, str]:
+    def send(self, message: str, **kwargs) -> tuple[bool, str]:
         valid, err = self.validate_config()
         if not valid:
             return False, f"Invalid config: {err}"

@@ -10,7 +10,7 @@ class Channel(ABC):
         self.config = config
 
     @abstractmethod
-    def send(self, message: str) -> tuple[bool, str]:
+    def send(self, message: str, **kwargs) -> tuple[bool, str]:
         """Send a message. Returns (success, detail_message)."""
         ...
 

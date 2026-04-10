@@ -1,8 +1,10 @@
 from heartbeat.channels.base import Channel
 from heartbeat.channels.telegram import TelegramChannel
+from heartbeat.channels.file import FileChannel
 
 CHANNELS = {
     "telegram": TelegramChannel,
+    "file": FileChannel,
 }
 
 

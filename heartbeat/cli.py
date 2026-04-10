@@ -261,7 +261,7 @@ def fire(name):
 
     try:
         channel = get_channel(config["channel"])
-        ok, detail = channel.send(message)
+        ok, detail = channel.send(message, task_name=name)
     except Exception as e:
         log_trigger(name, "error", str(e))
         sys.exit(1)
