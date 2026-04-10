@@ -1,8 +1,13 @@
 {
   "name": "claude-heartbeat-channel",
   "version": "0.1.0",
-  "description": "File-watching MCP channel for Claude Code heartbeat triggers",
+  "description": "File-watching MCP channel server for claude-heartbeat",
+  "license": "MIT",
   "type": "module",
+  "bin": "./server.ts",
+  "scripts": {
+    "start": "bun install --no-summary && bun server.ts"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1"
   }
