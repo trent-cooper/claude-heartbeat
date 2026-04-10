@@ -1,0 +1,15 @@
+channel:
+  type: telegram
+  bot_token: "${HEARTBEAT_BOT_TOKEN}"
+  chat_id: "12345"
+
+tasks:
+  morning_briefing:
+    schedule: "57 7 * * *"
+    message: "[HEARTBEAT:morning_briefing]"
+    enabled: true
+
+  weekly_review:
+    schedule: "3 18 * * 0"
+    message: "[HEARTBEAT:weekly_review]"
+    enabled: true
