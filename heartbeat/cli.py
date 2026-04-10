@@ -11,7 +11,6 @@ from heartbeat.config import (
     load_config,
     save_config,
     get_tasks,
-    ensure_config_dir,
 )
 from heartbeat.channels import get_channel
 from heartbeat.schedulers import get_scheduler
@@ -208,7 +207,7 @@ def test(name):
     task = tasks[name]
     message = task.get("message", f"[HEARTBEAT:{name}]")
 
-    channel = get_channel(config["channel"])
+    channel = get_channel(config.get("channel", {}))
     click.echo(f"Sending test message for '{name}'...")
     ok, detail = channel.send(f"[TEST] {message}")
 
@@ -244,7 +243,7 @@ def fire(name):
     message = task.get("message", f"[HEARTBEAT:{name}]")
 
     try:
-        channel = get_channel(config["channel"])
+        channel = get_channel(config.get("channel", {}))
         ok, detail = channel.send(message, task_name=name)
     except Exception as e:
         log_trigger(name, "error", str(e))
