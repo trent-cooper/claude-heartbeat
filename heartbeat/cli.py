@@ -26,38 +26,22 @@ def cli():
 
 @cli.command()
 def init():
-    """Interactive setup: create config directory and config file."""
+    """Create config directory and default config file."""
     if CONFIG_FILE.exists():
         if not click.confirm(f"Config already exists at {CONFIG_FILE}. Overwrite?"):
             click.echo("Aborted.")
             return
 
-    click.echo("Setting up claude-heartbeat...\n")
-
-    channel_type = click.prompt(
-        "Channel type",
-        type=click.Choice(["telegram"]),
-        default="telegram",
-    )
-
-    bot_token_input = click.prompt(
-        "Bot token (or env var like ${HEARTBEAT_BOT_TOKEN})",
-        type=str,
-    )
-
-    chat_id = click.prompt("Chat ID", type=str)
-
     config = {
         "channel": {
-            "type": channel_type,
-            "bot_token": bot_token_input,
-            "chat_id": chat_id,
+            "type": "file",
+            "inbox_dir": str(CONFIG_DIR / "inbox"),
         },
         "tasks": {},
     }
 
     save_config(config)
-    click.echo(f"\nConfig saved to {CONFIG_FILE}")
+    click.echo(f"Config saved to {CONFIG_FILE}")
     click.echo("Add tasks with: heartbeat add <name> --schedule '...' --message '...'")
 
 
