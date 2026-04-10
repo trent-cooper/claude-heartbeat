@@ -8,10 +8,10 @@ Claude Code's built-in scheduling (`CronCreate`, `/schedule`) is session-scoped:
 
 ## How It Works
 
-claude-heartbeat uses the OS scheduler (macOS launchd) to write trigger files at exact times. A lightweight MCP channel server watches for those files and delivers them to the Claude Code session as channel events.
+claude-heartbeat uses the OS scheduler (launchd on macOS, systemd user timers on Linux) to write trigger files at exact times. A lightweight MCP channel server watches for those files and delivers them to the Claude Code session as channel events.
 
 ```
-launchd (OS scheduler)
+OS scheduler (launchd / systemd)
   -> heartbeat fire <task>          (writes .trigger file)
     -> ~/.claude-heartbeat/inbox/   (filesystem)
       -> MCP channel server         (watches directory)
@@ -74,7 +74,7 @@ heartbeat add morning_briefing \
 # Test it (writes a trigger file immediately)
 heartbeat test morning_briefing
 
-# Register with macOS launchd
+# Register with the OS scheduler (launchd on macOS, systemd on Linux)
 heartbeat install
 
 # Verify
@@ -123,11 +123,11 @@ Values support `${ENV_VAR}` expansion.
 | `heartbeat add <name> -s <cron> -m <msg>` | Add a scheduled task |
 | `heartbeat remove <name>` | Remove a task from config and scheduler |
 | `heartbeat list` | Show all tasks with schedule, status, and last trigger time |
-| `heartbeat install` | Register enabled tasks with macOS launchd |
-| `heartbeat uninstall` | Remove all LaunchAgent plists |
+| `heartbeat install` | Register enabled tasks with the OS scheduler |
+| `heartbeat uninstall` | Remove all scheduled tasks from the OS scheduler |
 | `heartbeat test <name>` | Write a test trigger file immediately |
 | `heartbeat fire <name>` | Fire a trigger (called by launchd, not by you) |
-| `heartbeat status` | Show installed launchd job status |
+| `heartbeat status` | Show installed scheduler job status |
 | `heartbeat logs [name] [-n N]` | Show recent trigger history |
 
 ## Cron Expressions
@@ -164,13 +164,13 @@ The session can then act on the trigger -- run a daily briefing, generate a repo
 ## Supported Platforms
 
 - **macOS** (launchd) -- fully supported
-- **Linux** (systemd timers / cron) -- planned
+- **Linux** (systemd user timers) -- fully supported
 
 ## Requirements
 
 - Python 3.10+
 - [Bun](https://bun.sh) (for the MCP channel server)
-- macOS (for launchd scheduling)
+- macOS (launchd) or Linux (systemd with user session support)
 - Claude Code CLI with channels support
 
 ## License
